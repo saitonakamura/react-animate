@@ -11,9 +11,8 @@ const Hello = ({ show }: { show: boolean }) => {
       { opacity: 1, transform: 'translate(100px, 50px)' },
     ],
     {
-      duration: 1000,
+      duration: 5000,
       easing: 'ease-in-out',
-      iterations: 1,
     },
     show,
   )

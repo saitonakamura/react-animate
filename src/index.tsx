@@ -57,71 +57,136 @@ const runAnimation = <T extends Keyframe & React.CSSProperties>(
   }
 
   const animation = el.animate(keyframes, options)
+  // animation.
 
   animation.onfinish = () => {
+    if ('commitStyles' in animation) {
+      ;(animation as { commitStyles: () => void }).commitStyles()
+    }
     const styles = updateStyleFromKeyframe(to, el)
     onFinish(styles)
   }
+
+  return animation
 }
 
 export const useAnimate = <T extends Keyframe & React.CSSProperties>(
   keyframes: T[] & { 0: T },
   options: Options,
   conditional: boolean,
-): [(el: HTMLElement | null) => void, React.CSSProperties | null, boolean] => {
-  const [style, setStyle] = useState<React.CSSProperties | null>(
+): [
+  (el: HTMLElement | null) => void,
+  React.CSSProperties | undefined,
+  boolean,
+] => {
+  const [style, setStyle] = useState<React.CSSProperties | undefined>(
     keyframes.length > 1
       ? updateStyleFromKeyframe(keyframes[0], { style: {} } as HTMLElement)
-      : null,
+      : undefined,
   )
 
   const conditionalRef = useRef(conditional)
   const elRef = useRef<HTMLElement | null>(null)
   const animationRunningRef = useRef(false)
+  const animationRef = useRef<Animation>()
+  const unmountAnimationRunningRef = useRef(false)
 
-  const setRef = useCallback(
-    (el: HTMLElement | null) => {
-      if (el && !animationRunningRef.current) {
-        runAnimation(
-          keyframes,
-          options,
-          (fromStyles) => {
-            setStyle(fromStyles)
-            animationRunningRef.current = true
-          },
-          (toStyles) => {
-            setStyle(toStyles)
-            animationRunningRef.current = false
-          },
-          el,
-        )
-        elRef.current = el
-      } else {
-        elRef.current = null
+  const setRef = useCallback((el: HTMLElement | null) => {
+    if (el && !animationRunningRef.current) {
+      if (animationRunningRef.current && animationRef.current) {
+        animationRef.current.cancel()
       }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [conditional],
-  )
+
+      animationRef.current = runAnimation(
+        keyframes,
+        options,
+        (fromStyles) => {
+          animationRunningRef.current = true
+          setStyle(fromStyles)
+        },
+        (toStyles) => {
+          animationRunningRef.current = false
+          animationRef.current = undefined
+          setStyle(toStyles)
+        },
+        el,
+      )
+
+      elRef.current = el
+    } else {
+      // elRef.current = null
+    }
+  }, [])
 
   if (!conditionalRef.current && conditional) {
     conditionalRef.current = true
   } else if (conditionalRef.current && !conditional) {
-    if (elRef.current && !animationRunningRef.current) {
-      runAnimation(
+    if (elRef.current) {
+      let time: number | null = null
+      if (animationRunningRef.current && animationRef.current) {
+        time = animationRef.current.currentTime
+        animationRef.current.cancel()
+        // debugger
+      }
+
+      animationRef.current = runAnimation(
         [...keyframes].reverse(),
-        options,
+        time &&
+          options.duration &&
+          typeof options.duration === 'number' &&
+          options.duration > 0
+          ? {
+              ...options,
+              iterationStart: 1 - time / options.duration,
+              iterations:
+                (options.iterations ?? 1) - (1 - time / options.duration),
+            }
+          : options,
         (_fromStyles) => {
           animationRunningRef.current = true
-        }, //etStyle(fromStyles),
+          unmountAnimationRunningRef.current = true
+        },
         (_toStyles) => {
-          // setStyle(toStyles)
           animationRunningRef.current = false
           conditionalRef.current = false
+          unmountAnimationRunningRef.current = false
         },
         elRef.current,
       )
     }
+  }
+  if (conditional && unmountAnimationRunningRef.current && elRef.current) {
+    // debugger
+    let time: number | null = null
+    if (animationRunningRef.current && animationRef.current) {
+      time = animationRef.current.currentTime
+      animationRef.current.cancel()
+    }
+
+    animationRef.current = runAnimation(
+      keyframes,
+      time &&
+        options.duration &&
+        typeof options.duration === 'number' &&
+        options.duration > 0
+        ? {
+            ...options,
+            iterationStart: 1 - time / options.duration,
+            iterations:
+              (options.iterations ?? 1) - (1 - time / options.duration),
+          }
+        : options,
+      (fromStyles) => {
+        animationRunningRef.current = true
+      },
+      (toStyles) => {
+        animationRunningRef.current = false
+        animationRef.current = undefined
+      },
+      elRef.current,
+    )
+
+    conditionalRef.current = true
   }
 
   return [setRef, style, conditionalRef.current]

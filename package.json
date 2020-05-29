@@ -13,9 +13,11 @@
   "scripts": {
     "start": "tsdx watch",
     "build": "tsdx build",
-    "test": "tsdx test --passWithNoTests",
+    "test": "yarn lint && yarn unit && yarn size-limit",
+    "unit": "tsdx test --passWithNoTests",
     "lint": "tsdx lint",
-    "prepare": "tsdx build"
+    "prepare": "tsdx build",
+    "size-limit": "size-limit"
   },
   "peerDependencies": {
     "react": ">=16.8"
