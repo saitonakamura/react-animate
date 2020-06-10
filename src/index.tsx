@@ -8,70 +8,36 @@ const nonStylesKeyframeKeys: Array<keyof Keyframe> = [
   'offset',
 ]
 
-// type UseAnimate = <T extends Keyframe>(
-//   keyframes: T[] & { 0: T },
-//   options?: Options,
-// ) => [(el: HTMLElement | null) => void, React.CSSProperties]
-
 type WithoutKeyframeKeys<T extends Keyframe> = Omit<
   T,
   'composite' | 'easing' | 'offset'
 >
 
-const updateStyleFromKeyframe = <T extends Keyframe & React.CSSProperties>(
+const filterStyles = <T extends Keyframe & React.CSSProperties>(
   keyframe: T,
-  el: HTMLElement,
 ): WithoutKeyframeKeys<T> => {
-  const filteredStyles = Object.entries(keyframe).filter(
-    ([key]) => !nonStylesKeyframeKeys.includes(key),
-  )
+  const filteredStyles = {} as WithoutKeyframeKeys<T>
 
-  filteredStyles.forEach(([key, value]) => {
+  Object.keys(keyframe).forEach((key: keyof T) => {
+    if (
+      nonStylesKeyframeKeys.some(
+        (nonStylesKeyframeKey) => nonStylesKeyframeKey === key,
+      )
+    ) {
+      return
+    }
+
     // @ts-ignore
-    el.style[key] = value
+    filteredStyles[key] = keyframe[key]
   })
 
-  return (Object.fromEntries(filteredStyles) as unknown) as WithoutKeyframeKeys<
-    T
-  >
+  return filteredStyles
 }
 
-const runAnimation = <T extends Keyframe & React.CSSProperties>(
-  keyframes: T[],
-  options: Options,
-  onStart: (styles: WithoutKeyframeKeys<T>) => void,
-  onFinish: (styles: WithoutKeyframeKeys<T>) => void,
-  el: HTMLElement,
-) => {
-  if (keyframes.length <= 0) {
-    return
-  }
-  const lastIndex = keyframes.length - 1
-
-  const from = lastIndex > 0 ? keyframes[0] : undefined
-  const to = keyframes[lastIndex]
-
-  if (from) {
-    const styles = updateStyleFromKeyframe(from, el)
-    onStart(styles)
-  }
-
-  const animation = el.animate(keyframes, options)
-  // animation.
-
-  animation.onfinish = () => {
-    if ('commitStyles' in animation) {
-      ;(animation as { commitStyles: () => void }).commitStyles()
-    }
-    const styles = updateStyleFromKeyframe(to, el)
-    onFinish(styles)
-  }
-
-  return animation
-}
+type AnimationRunningDirection = 'none' | 'forward' | 'backwards'
 
 export const useAnimate = <T extends Keyframe & React.CSSProperties>(
-  keyframes: T[] & { 0: T },
+  keyframes: T[] & { 0: T; 1: T },
   options: Options,
   conditional: boolean,
 ): [
@@ -80,113 +46,89 @@ export const useAnimate = <T extends Keyframe & React.CSSProperties>(
   boolean,
 ] => {
   const [style, setStyle] = useState<React.CSSProperties | undefined>(
-    keyframes.length > 1
-      ? updateStyleFromKeyframe(keyframes[0], { style: {} } as HTMLElement)
-      : undefined,
+    filterStyles(keyframes[0]),
   )
+
+  const lastIndex = keyframes.length - 1
+
+  const from = keyframes[0]
+  const to = keyframes[lastIndex]
+  const fromStyles = filterStyles(from)
+  const toStyles = filterStyles(to)
 
   const conditionalRef = useRef(conditional)
   const elRef = useRef<HTMLElement | null>(null)
-  const animationRunningRef = useRef(false)
+  const animationRunningDirectionRef = useRef<AnimationRunningDirection>('none')
   const animationRef = useRef<Animation>()
-  const unmountAnimationRunningRef = useRef(false)
 
-  const setRef = useCallback((el: HTMLElement | null) => {
-    if (el && !animationRunningRef.current) {
-      if (animationRunningRef.current && animationRef.current) {
-        animationRef.current.cancel()
-      }
-
-      animationRef.current = runAnimation(
-        keyframes,
-        options,
-        (fromStyles) => {
-          animationRunningRef.current = true
+  const setRef = useCallback(
+    (el: HTMLElement | null) => {
+      if (el) {
+        elRef.current = el
+        if (conditional && animationRunningDirectionRef.current === 'none') {
+          animationRunningDirectionRef.current = 'forward'
           setStyle(fromStyles)
-        },
-        (toStyles) => {
-          animationRunningRef.current = false
-          animationRef.current = undefined
-          setStyle(toStyles)
-        },
-        el,
-      )
+          animationRef.current = el.animate(keyframes, options)
+          animationRef.current.onfinish = () => {
+            animationRunningDirectionRef.current = 'none'
+            setStyle(toStyles)
+          }
+        }
+      } else {
+        elRef.current = null
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [conditional],
+  )
 
-      elRef.current = el
-    } else {
-      // elRef.current = null
-    }
-  }, [])
+  console.log(
+    { conditional },
+    conditionalRef.current,
+    animationRunningDirectionRef.current,
+    animationRef.current,
+  )
 
   if (!conditionalRef.current && conditional) {
     conditionalRef.current = true
-  } else if (conditionalRef.current && !conditional) {
-    if (elRef.current) {
-      let time: number | null = null
-      if (animationRunningRef.current && animationRef.current) {
-        time = animationRef.current.currentTime
-        animationRef.current.cancel()
-        // debugger
+
+    if (animationRunningDirectionRef.current === 'none' && elRef.current) {
+      debugger
+      animationRunningDirectionRef.current = 'forward'
+      setStyle(fromStyles)
+      animationRef.current = elRef.current.animate(keyframes, options)
+      animationRef.current.onfinish = () => {
+        animationRunningDirectionRef.current = 'none'
+        setStyle(toStyles)
       }
-
-      animationRef.current = runAnimation(
-        [...keyframes].reverse(),
-        time &&
-          options.duration &&
-          typeof options.duration === 'number' &&
-          options.duration > 0
-          ? {
-              ...options,
-              iterationStart: 1 - time / options.duration,
-              iterations:
-                (options.iterations ?? 1) - (1 - time / options.duration),
-            }
-          : options,
-        (_fromStyles) => {
-          animationRunningRef.current = true
-          unmountAnimationRunningRef.current = true
-        },
-        (_toStyles) => {
-          animationRunningRef.current = false
-          conditionalRef.current = false
-          unmountAnimationRunningRef.current = false
-        },
-        elRef.current,
-      )
     }
-  }
-  if (conditional && unmountAnimationRunningRef.current && elRef.current) {
-    // debugger
-    let time: number | null = null
-    if (animationRunningRef.current && animationRef.current) {
-      time = animationRef.current.currentTime
-      animationRef.current.cancel()
+  } else if (conditionalRef.current && !conditional) {
+    if (
+      (animationRunningDirectionRef.current === 'forward' ||
+        animationRunningDirectionRef.current === 'none') &&
+      animationRef.current
+    ) {
+      animationRunningDirectionRef.current = 'backwards'
+      animationRef.current.onfinish = () => {
+        conditionalRef.current = false
+        animationRunningDirectionRef.current = 'none'
+        setStyle(fromStyles)
+      }
+      animationRef.current.reverse()
     }
-
-    animationRef.current = runAnimation(
-      keyframes,
-      time &&
-        options.duration &&
-        typeof options.duration === 'number' &&
-        options.duration > 0
-        ? {
-            ...options,
-            iterationStart: 1 - time / options.duration,
-            iterations:
-              (options.iterations ?? 1) - (1 - time / options.duration),
-          }
-        : options,
-      (fromStyles) => {
-        animationRunningRef.current = true
-      },
-      (toStyles) => {
-        animationRunningRef.current = false
-        animationRef.current = undefined
-      },
-      elRef.current,
-    )
-
-    conditionalRef.current = true
+  } else if (
+    animationRunningDirectionRef.current === 'backwards' &&
+    conditionalRef.current &&
+    conditional &&
+    animationRef.current
+  ) {
+    animationRunningDirectionRef.current = 'forward'
+    animationRef.current.onfinish = () => {
+      animationRunningDirectionRef.current = 'none'
+      setStyle(toStyles)
+    }
+    animationRef.current.reverse()
+    // conditionalRef.current = true
   }
 
   return [setRef, style, conditionalRef.current]
