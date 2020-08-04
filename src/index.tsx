@@ -60,6 +60,7 @@ export const useAnimate = <T extends Keyframe & React.CSSProperties>(
   const elRef = useRef<HTMLElement | null>(null)
   const animationRunningDirectionRef = useRef<AnimationRunningDirection>('none')
   const animationRef = useRef<Animation>()
+  const onFinishRef = useRef<Animation['onfinish']>()
 
   const setRef = useCallback(
     (el: HTMLElement | null) => {
@@ -69,10 +70,17 @@ export const useAnimate = <T extends Keyframe & React.CSSProperties>(
           animationRunningDirectionRef.current = 'forward'
           setStyle(fromStyles)
           animationRef.current = el.animate(keyframes, options)
-          animationRef.current.onfinish = () => {
+          if (onFinishRef.current) {
+            animationRef.current.removeEventListener(
+              'finish',
+              onFinishRef.current,
+            )
+          }
+          onFinishRef.current = () => {
             animationRunningDirectionRef.current = 'none'
             setStyle(toStyles)
           }
+          animationRef.current.addEventListener('finish', onFinishRef.current)
         }
       } else {
         elRef.current = null
@@ -93,14 +101,17 @@ export const useAnimate = <T extends Keyframe & React.CSSProperties>(
     conditionalRef.current = true
 
     if (animationRunningDirectionRef.current === 'none' && elRef.current) {
-      debugger
       animationRunningDirectionRef.current = 'forward'
       setStyle(fromStyles)
       animationRef.current = elRef.current.animate(keyframes, options)
-      animationRef.current.onfinish = () => {
+      if (onFinishRef.current) {
+        animationRef.current.removeEventListener('finish', onFinishRef.current)
+      }
+      onFinishRef.current = () => {
         animationRunningDirectionRef.current = 'none'
         setStyle(toStyles)
       }
+      animationRef.current.addEventListener('finish', onFinishRef.current)
     }
   } else if (conditionalRef.current && !conditional) {
     if (
@@ -109,11 +120,15 @@ export const useAnimate = <T extends Keyframe & React.CSSProperties>(
       animationRef.current
     ) {
       animationRunningDirectionRef.current = 'backwards'
-      animationRef.current.onfinish = () => {
+      if (onFinishRef.current) {
+        animationRef.current.removeEventListener('finish', onFinishRef.current)
+      }
+      onFinishRef.current = () => {
         conditionalRef.current = false
         animationRunningDirectionRef.current = 'none'
         setStyle(fromStyles)
       }
+      animationRef.current.addEventListener('finish', onFinishRef.current)
       animationRef.current.reverse()
     }
   } else if (
@@ -123,10 +138,14 @@ export const useAnimate = <T extends Keyframe & React.CSSProperties>(
     animationRef.current
   ) {
     animationRunningDirectionRef.current = 'forward'
-    animationRef.current.onfinish = () => {
+    if (onFinishRef.current) {
+      animationRef.current.removeEventListener('finish', onFinishRef.current)
+    }
+    onFinishRef.current = () => {
       animationRunningDirectionRef.current = 'none'
       setStyle(toStyles)
     }
+    animationRef.current.addEventListener('finish', onFinishRef.current)
     animationRef.current.reverse()
     // conditionalRef.current = true
   }

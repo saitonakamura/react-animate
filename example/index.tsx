@@ -26,11 +26,21 @@ const Hello = ({ show }: { show: boolean }) => {
 
 const App = () => {
   const [show, setShow] = useState(false)
+  const [start, setStart] = useState(false)
+
+  const [setRef, styles] = useAnimate(
+    [{ transform: 'scale(1)' }, { transform: 'scale(2)' }],
+    { duration: 1000, easing: 'ease-in-out' },
+    start,
+  )
 
   return (
     <>
-      <button onClick={() => setShow(!show)}>toggle</button>
+      <button onClick={() => setShow(!show)}>toggle mount</button>
       <Hello show={show} />
+      <button ref={setRef} style={styles} onClick={() => setStart(!start)}>
+        toggle start animation
+      </button>
     </>
   )
 }
