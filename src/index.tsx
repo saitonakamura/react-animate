@@ -45,10 +45,6 @@ export const useAnimate = <T extends Keyframe & React.CSSProperties>(
   React.CSSProperties | undefined,
   boolean,
 ] => {
-  const [style, setStyle] = useState<React.CSSProperties | undefined>(
-    filterStyles(keyframes[0]),
-  )
-
   const lastIndex = keyframes.length - 1
 
   const from = keyframes[0]
@@ -56,81 +52,123 @@ export const useAnimate = <T extends Keyframe & React.CSSProperties>(
   const fromStyles = filterStyles(from)
   const toStyles = filterStyles(to)
 
+  const [style, setStyle] = useState<React.CSSProperties | undefined>(
+    conditional ? toStyles : fromStyles,
+    // undefined,
+  )
+
+  const currentConditionalCopyRef = useRef(conditional)
+  currentConditionalCopyRef.current = conditional
+
   const conditionalRef = useRef(conditional)
   const elRef = useRef<HTMLElement | null>(null)
   const animationRunningDirectionRef = useRef<AnimationRunningDirection>('none')
   const animationRef = useRef<Animation>()
   const onFinishRef = useRef<Animation['onfinish']>()
 
+  const handleFinishForward = function(this: Animation) {
+    console.timeEnd('forward')
+    animationRunningDirectionRef.current = 'none'
+    setStyle(toStyles)
+    // this.removeEventListener('finish', handleFinishForward)
+  }
+
+  const handleFinishBackwards = function(this: Animation) {
+    console.timeEnd('backward')
+    animationRunningDirectionRef.current = 'none'
+    conditionalRef.current = false
+    setStyle(fromStyles)
+    // this.removeEventListener('finish', handleFinishBackwards)
+  }
+
+  const addFinishEventListener = (
+    animation: Animation,
+    callback: () => void,
+  ) => {
+    if (onFinishRef.current) {
+      animation.removeEventListener('finish', onFinishRef.current)
+    }
+    onFinishRef.current = callback
+    animation.addEventListener('finish', callback)
+  }
+
   const setRef = useCallback(
     (el: HTMLElement | null) => {
+      console.log('setRef', { conditional: conditional, el: !!el })
       if (el) {
         elRef.current = el
-        if (conditional && animationRunningDirectionRef.current === 'none') {
+        if (
+          currentConditionalCopyRef.current &&
+          animationRunningDirectionRef.current === 'none'
+        ) {
           animationRunningDirectionRef.current = 'forward'
-          setStyle(fromStyles)
-          animationRef.current = el.animate(keyframes, options)
-          if (onFinishRef.current) {
-            animationRef.current.removeEventListener(
-              'finish',
-              onFinishRef.current,
-            )
-          }
-          onFinishRef.current = () => {
-            animationRunningDirectionRef.current = 'none'
-            setStyle(toStyles)
-          }
-          animationRef.current.addEventListener('finish', onFinishRef.current)
+          // setStyle(fromStyles)
+          animationRef.current = el.animate(keyframes, {
+            // fill: 'both',
+            ...options,
+          })
+
+          addFinishEventListener(animationRef.current, handleFinishForward)
         }
       } else {
         elRef.current = null
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [conditional],
+    // [conditional],
+    [],
   )
 
   console.log(
     { conditional },
     conditionalRef.current,
     animationRunningDirectionRef.current,
-    animationRef.current,
+    // animationRef.current,
   )
 
   if (!conditionalRef.current && conditional) {
+    console.log('start')
     conditionalRef.current = true
 
     if (animationRunningDirectionRef.current === 'none' && elRef.current) {
       animationRunningDirectionRef.current = 'forward'
-      setStyle(fromStyles)
-      animationRef.current = elRef.current.animate(keyframes, options)
-      if (onFinishRef.current) {
-        animationRef.current.removeEventListener('finish', onFinishRef.current)
-      }
-      onFinishRef.current = () => {
-        animationRunningDirectionRef.current = 'none'
-        setStyle(toStyles)
-      }
-      animationRef.current.addEventListener('finish', onFinishRef.current)
+      // setStyle(fromStyles)
+      console.time('forward')
+      animationRef.current = elRef.current.animate(keyframes, {
+        // fill: 'forwards',
+        ...options,
+      })
+
+      addFinishEventListener(animationRef.current, handleFinishForward)
     }
-  } else if (conditionalRef.current && !conditional) {
-    if (
-      (animationRunningDirectionRef.current === 'forward' ||
-        animationRunningDirectionRef.current === 'none') &&
-      animationRef.current
-    ) {
-      animationRunningDirectionRef.current = 'backwards'
-      if (onFinishRef.current) {
-        animationRef.current.removeEventListener('finish', onFinishRef.current)
-      }
-      onFinishRef.current = () => {
-        conditionalRef.current = false
-        animationRunningDirectionRef.current = 'none'
-        setStyle(fromStyles)
-      }
-      animationRef.current.addEventListener('finish', onFinishRef.current)
-      animationRef.current.reverse()
-    }
+  } else if (
+    conditionalRef.current &&
+    !conditional &&
+    animationRunningDirectionRef.current === 'forward' &&
+    animationRef.current
+  ) {
+    console.log('reverse from forward')
+    console.time('backward')
+    animationRunningDirectionRef.current = 'backwards'
+    addFinishEventListener(animationRef.current, handleFinishBackwards)
+    animationRef.current.reverse()
+  } else if (
+    conditionalRef.current &&
+    !conditional &&
+    animationRunningDirectionRef.current === 'none' &&
+    animationRef.current &&
+    elRef.current
+  ) {
+    console.log('reverse from none')
+    console.time('backward')
+    animationRunningDirectionRef.current = 'backwards'
+    // animationRef.current = elRef.current.animate(keyframes, {
+    //   // fill: 'forwards',
+    //   direction: 'reverse',
+    //   ...options,
+    // })
+
+    addFinishEventListener(animationRef.current, handleFinishBackwards)
+    animationRef.current.reverse()
   } else if (
     animationRunningDirectionRef.current === 'backwards' &&
     conditionalRef.current &&
@@ -138,14 +176,7 @@ export const useAnimate = <T extends Keyframe & React.CSSProperties>(
     animationRef.current
   ) {
     animationRunningDirectionRef.current = 'forward'
-    if (onFinishRef.current) {
-      animationRef.current.removeEventListener('finish', onFinishRef.current)
-    }
-    onFinishRef.current = () => {
-      animationRunningDirectionRef.current = 'none'
-      setStyle(toStyles)
-    }
-    animationRef.current.addEventListener('finish', onFinishRef.current)
+    addFinishEventListener(animationRef.current, handleFinishForward)
     animationRef.current.reverse()
     // conditionalRef.current = true
   }

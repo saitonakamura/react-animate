@@ -16,6 +16,10 @@ const Hello = ({ show }: { show: boolean }) => {
     },
     show,
   )
+  
+  console.log('Hello.render', { show, showNew })
+
+  // console.groupEnd()
 
   return showNew ? (
     <div ref={setRef} style={styles}>
@@ -27,6 +31,10 @@ const Hello = ({ show }: { show: boolean }) => {
 const App = () => {
   const [show, setShow] = useState(false)
   const [start, setStart] = useState(false)
+
+  // console.group('render')
+  console.log('App.render', { show })
+  console.log('App.render', { start })
 
   const [setRef, styles] = useAnimate(
     [{ transform: 'scale(1)' }, { transform: 'scale(2)' }],
