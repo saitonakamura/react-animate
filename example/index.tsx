@@ -4,7 +4,7 @@ import ReactDOM from 'react-dom'
 import { useAnimate } from '../.'
 
 const Hello = ({ show }: { show: boolean }) => {
-  const [setRef, styles, showNew] = useAnimate(
+  const [setRef, showNew] = useAnimate(
     [
       { opacity: 0, transform: 'translate(0, 0)' },
       { opacity: 1, transform: 'translate(500px, 0px)' },
@@ -16,16 +16,12 @@ const Hello = ({ show }: { show: boolean }) => {
     },
     show,
   )
-  
+
   console.log('Hello.render', { show, showNew })
 
   // console.groupEnd()
 
-  return showNew ? (
-    <div ref={setRef} style={styles}>
-      Hello
-    </div>
-  ) : null
+  return showNew ? <div ref={setRef}>Hello</div> : null
 }
 
 const App = () => {
@@ -36,7 +32,7 @@ const App = () => {
   console.log('App.render', { show })
   console.log('App.render', { start })
 
-  const [setRef, styles] = useAnimate(
+  const [setRef] = useAnimate(
     [{ transform: 'scale(1)' }, { transform: 'scale(2)' }],
     { duration: 1000, easing: 'ease-in-out' },
     start,
@@ -46,7 +42,7 @@ const App = () => {
     <>
       <button onClick={() => setShow(!show)}>toggle mount</button>
       <Hello show={show} />
-      <button ref={setRef} style={styles} onClick={() => setStart(!start)}>
+      <button ref={setRef} onClick={() => setStart(!start)}>
         toggle start animation
       </button>
     </>
