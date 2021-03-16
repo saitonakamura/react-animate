@@ -1,4 +1,4 @@
-import React, { useCallback, /*useState,*/ useRef, useState } from 'react'
+import React, { useCallback, useRef, useState } from 'react'
 
 interface Options extends KeyframeAnimationOptions {}
 
@@ -70,14 +70,14 @@ export const useAnimate = <T extends Keyframe & React.CSSProperties>(
   const animationRef = useRef<Animation>()
   const onFinishRef = useRef<Animation['onfinish']>()
 
-  const handleFinishForward = function(this: Animation) {
+  const handleFinishForward = function (this: Animation) {
     // console.timeEnd('forward')
     animationRunningDirectionRef.current = 'none'
     // setStyle(toStyles)
     // this.removeEventListener('finish', handleFinishForward)
   }
 
-  const handleFinishBackwards = function(this: Animation) {
+  const handleFinishBackwards = function (this: Animation) {
     // console.timeEnd('backward')
     // console.log('finish backwards')
     animationRunningDirectionRef.current = 'none'

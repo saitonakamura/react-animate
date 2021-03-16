@@ -1,0 +1,33 @@
+---
+name: React animate
+route: /
+---
+
+import { Playground } from 'docz'
+import { useAnimate } from '../src/index.tsx'
+import { Block } from './Block'
+
+# Hello
+
+<Playground>
+  <button>Click me</button>
+</Playground>
+
+<Playground>
+  {() => {
+    const [show, setShow] = React.useState(false)
+    const [ref, derivedShow] = useAnimate(
+        [{ opacity: 0 }, { opacity: 1 }],
+        { duration: 1000, easing: 'ease-in-out' },
+        show
+    )
+    return (
+      <>
+        <button onClick={() => setShow(s => !s)}>
+          Increase
+        </button>
+        {derivedShow ? <Block innerRef={ref} /> : null}
+      </>
+    )
+  }}
+</Playground>
